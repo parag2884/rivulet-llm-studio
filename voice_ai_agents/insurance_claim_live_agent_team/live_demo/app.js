@@ -373,7 +373,7 @@ async function createSession() {
   setWriting(false);
   setStatus("Connecting", "neutral");
   setState(emptyState);
-  pageDate.textContent = `Claim intake notes · ${new Date().toLocaleDateString([], { month: "short", day: "numeric" })}`;
+  pageDate.textContent = `Claim file · ${new Date().toLocaleDateString([], { month: "short", day: "numeric" })}`;
   try {
     const payload = await api("/api/sessions", { method: "POST" });
     sessionId = payload.session_id;
@@ -382,7 +382,7 @@ async function createSession() {
     voiceMode = health.voice_mode || "gemini_live";
     modelLabel.textContent = `${health.live_model} · sketches by ${health.sketch_model}`;
     const pageAgent = document.querySelector("#pageAgent");
-    if (pageAgent) pageAgent.textContent = `${health.live_model}, field notes`;
+    if (pageAgent) pageAgent.textContent = `${health.live_model} · Rivulet`;
     setStatus(payload.has_api_key ? "Ready" : "API key required", payload.has_api_key ? "" : "danger");
     textInput.focus();
   } catch (error) {

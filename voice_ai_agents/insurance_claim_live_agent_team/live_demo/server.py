@@ -596,7 +596,7 @@ async def message(request: MessageRequest) -> SessionResponse:
 
 
 def _pin_evidence_photo(session: IntakeSession, args: dict[str, Any]) -> dict[str, Any]:
-    """Tape the most recent camera frame into the notebook with the agent's caption."""
+    """Pin the most recent camera frame into the claim file with the agent's caption."""
 
     observation = str(args.get("observation") or args.get("caption") or "").strip()
     claimant_said = str(args.get("claimant_description", "")).strip()
@@ -633,9 +633,9 @@ def _pin_evidence_photo(session: IntakeSession, args: dict[str, Any]) -> dict[st
         "confirmed": confirmed,
         "photo_count": len(session.evidence_photos),
         "message": (
-            "Frame taped into the notebook as confirmed evidence."
+            "Frame pinned to the claim file as confirmed evidence."
             if confirmed
-            else "Frame taped into the notebook marked as not confirmed. Ask for a closer or brighter view, then pin again."
+            else "Frame pinned to the claim file marked as not confirmed. Ask for a closer or brighter view, then pin again."
         ),
     }
 
@@ -661,7 +661,7 @@ async def _draw_incident_sketch(session: IntakeSession, args: dict[str, Any]) ->
         return {
             "sketched": True,
             "version": version,
-            "next_step": "Tell the claimant the sketch is in the notebook and ask if it looks right.",
+            "next_step": "Tell the claimant the sketch is in the claim file and ask if it looks right.",
         }
 
     from google.genai import types
@@ -692,7 +692,7 @@ async def _draw_incident_sketch(session: IntakeSession, args: dict[str, Any]) ->
     return {
         "sketched": True,
         "version": version,
-        "next_step": "Tell the claimant the sketch is in the notebook and ask if it looks right.",
+        "next_step": "Tell the claimant the sketch is in the claim file and ask if it looks right.",
     }
 
 

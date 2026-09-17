@@ -15,6 +15,7 @@ services:
       INSURANCE_PUBLIC_URL: http://localhost:4177
       RUNNER_INTERNAL_URL: http://runner:8500
       RUNNER_PUBLIC_URL: http://localhost:8501
+      RUNNER_CONTROL_URL: http://localhost:8500
     volumes:
       - .:/apps:ro
     depends_on:
@@ -45,6 +46,7 @@ services:
     environment:
       APPS_ROOT: /apps
       CHILD_PORT: 8501
+      RUNNER_CONTROL_PUBLIC_URL: http://localhost:8500
       PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
       PIP_TRUSTED_HOST: packagefeedproxy.microsoft.io
     volumes:

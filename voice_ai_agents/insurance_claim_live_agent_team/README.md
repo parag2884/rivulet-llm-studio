@@ -1,15 +1,15 @@
 # Insurance Claim Live Agent Team
 
-A voice-first insurance claim intake app on Gemini 3.8 Live. The claim is not a form but a field notebook that writes itself while the claimant talks. Turn on the camera and the agent looks at the damage, says what it sees, and tapes the frame into the notebook. Once it understands the scene, it sketches the incident and asks whether it looks right. Behind the page, a background agent team verifies the policy, applies the intake rules, and builds the adjuster packet.
+Voice-first FNOL intake for **Rivulet Claims**. Facts land in a claim file while the claimant talks. Camera stills pin as evidence. Azure OpenAI runs the turn-based path; Gemini Live remains optional.
 
-![Insurance Claim Live Agent Team notebook during a live call, with camera frames pinned and marked not confirmed](assets/insurance-claim-live-agent-team-notebook.png)
+![Rivulet Claims intake](assets/insurance-claim-live-agent-team-notebook.png)
 
 ## What Gemini 3.8 Live makes possible
 
 Audio and camera frames in one session, spoken replies, and function calls that run in the background while the conversation continues.
 
-- **It listens and writes.** Extracted facts appear as handwritten lines, blockers as red blanks, the routing decision as a rubber stamp.
-- **It looks.** Camera frames stream in at one per second. When the agent sees something relevant, it says so and calls `pin_evidence_photo`. The frame is taped into the notebook with the agent's own observation underneath.
+- **It listens and writes.** Extracted facts appear on the claim file, blockers as red blanks, the routing decision as a stamp.
+- **It looks.** Camera frames stream in at one per second. When the agent sees something relevant, it says so and calls `pin_evidence_photo`. The frame pins into the evidence grid with the agent's own observation underneath.
 - **It draws.** Once it knows where and what happened, it calls `draw_incident_sketch`. An image model draws a pen sketch and the agent asks "does this look right?" Corrections by voice trigger a redraw.
 - **It reports only what it sees.** Told "you can see the big crack, right?" while looking at a smudge, the agent says it sees a small dark mark, asks for a closer view, and pins the frame marked not confirmed.
 - **It never stops talking to wait.** Every tool is `NON_BLOCKING`. Results land `WHEN_IDLE`; injury or an unsafe home comes back as `INTERRUPT`, and the agent stops to escalate to a human.
@@ -23,14 +23,14 @@ Audio and camera frames in one session, spoken replies, and function calls that 
 - Typed turns go through the same live session, so the demo works without a microphone
 - A "still needed" checklist and a claim team activity feed beside the call
 
-### The notebook
+### The claim file
 
-- Handwritten notes for name, policy, location, date, what happened, injuries, contact, and evidence
+- Typed case notes for name, policy, location, date, what happened, injuries, contact, and evidence
 - Policy verification as a green tick in the margin, or a red flag for lapsed or unknown policies
 - Red blanks for blocking intake items
-- Camera frames taped in as polaroids with the agent's captions
-- A pen sketch of the incident scene, redrawn when the claimant corrects it
-- A rubber stamp for the routing decision: needs docs, ready for adjuster, SIU review, or escalate to human
+- Camera frames pinned as evidence cards with the agent's captions
+- A scene sketch of the incident, redrawn when the claimant corrects it
+- A routing stamp: needs docs, ready for adjuster, SIU review, or escalate to human
 - The full adjuster packet in Markdown behind one button
 
 ### Background agent team
@@ -39,7 +39,7 @@ Audio and camera frames in one session, spoken replies, and function calls that 
 | --- | --- | --- |
 | `lookup_policy` | Verifies the policy number against a mock policy directory | When idle, or interrupt if the policy is lapsed |
 | `sync_claim_packet` | Runs the ADK claim graph on the conversation plus camera observations and returns routing and the open items the packet still needs. The agent treats them as a checklist to raise when the current topic closes, not a script | When idle, or interrupt on safety escalation |
-| `pin_evidence_photo` | Tapes the current camera frame into the notebook with the agent's own observation, the claimant's description, and whether the frame confirms it | When idle |
+| `pin_evidence_photo` | Pins the current camera frame into the claim file with the agent's own observation, the claimant's description, and whether the frame confirms it | When idle |
 | `draw_incident_sketch` | Draws a pen sketch of the scene with the image model | When idle |
 
 ### Insurance-specific routing
@@ -61,7 +61,7 @@ Audio and camera frames in one session, spoken replies, and function calls that 
 | Structured extraction | `gemini-3.8-flash` | Converts messy claim language and camera observations into structured claim facts inside the ADK graph |
 | Business rules | Python FunctionNodes + Pydantic | Deterministic missing-field checks, evidence gates, safety routing, SIU signals, and handoff packet output |
 | App backend | FastAPI | Serves the frontend, manages the Gemini Live WebSocket, executes tool calls, and calls `run_claim_workflow()` |
-| Frontend | HTML, CSS, JavaScript | The desk: a call card, the notebook page, and the adjuster packet |
+| Frontend | HTML, CSS, JavaScript | The desk: a call card, the claim file, and the adjuster packet |
 
 ## How It Works
 
@@ -94,10 +94,10 @@ Agent confirms the policy, describes the photo, asks about the sketch, or escala
 server.py streams transcript, tool activity, photos, sketch, and claim state
         |
         v
-The notebook page writes, tapes, pins, and stamps
+The claim file writes, pins, and stamps
 ```
 
-The claim graph also runs automatically after every finalized claimant turn, so the notebook stays current even if the model has not called `sync_claim_packet` yet. Results are cached per transcript snapshot, so a tool call that lands right after an automatic run reuses it instead of paying for a second extraction. Camera observations from `pin_evidence_photo` are appended to the text the graph reads, so the claim writer treats them as evidence.
+The claim graph also runs automatically after every finalized claimant turn, so the claim file stays current even if the model has not called `sync_claim_packet` yet. Results are cached per transcript snapshot, so a tool call that lands right after an automatic run reuses it instead of paying for a second extraction. Camera observations from `pin_evidence_photo` are appended to the text the graph reads, so the claim writer treats them as evidence.
 
 ## Demo Policy Numbers
 
@@ -177,7 +177,7 @@ Open the app:
 http://127.0.0.1:4177/index.html
 ```
 
-Tap "Talk" to start the live call, or type a claimant turn into the text box; typed turns go through the same live session, so you still hear the agent and see the notebook fill in. Tap "Show camera" to let the agent see the damage. Point it at a wet wall, a dented bumper, a receipt, or even a sketch on paper, and the agent will describe what it sees and tape the frame into the notebook.
+Tap "Talk" to start the live call, or type a claimant turn into the text box; typed turns go through the same live session, so you still hear the agent and see the claim file fill in. Tap "Show camera" to let the agent see the damage. Point it at a wet wall, a dented bumper, a receipt, or even a sketch on paper, and the agent will describe what it sees and pin the frame as evidence.
 
 Try this opening line to see the whole team run at once:
 

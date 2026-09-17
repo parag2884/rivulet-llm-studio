@@ -18,6 +18,7 @@ STATIC = Path(__file__).resolve().parent / "static"
 INSURANCE_URL = os.getenv("INSURANCE_PUBLIC_URL", "http://localhost:4177")
 RUNNER_URL = os.getenv("RUNNER_INTERNAL_URL", "http://127.0.0.1:8500")
 RUNNER_PUBLIC_URL = os.getenv("RUNNER_PUBLIC_URL", "http://localhost:8501")
+RUNNER_CONTROL_URL = os.getenv("RUNNER_CONTROL_URL", "http://localhost:8500")
 
 app = FastAPI(title="LLM Apps Studio")
 app.mount("/assets", StaticFiles(directory=STATIC), name="assets")
@@ -35,7 +36,12 @@ def projects() -> list[dict]:
             row["always_on"] = True
             row["launchable"] = True
         else:
-            row["open_url"] = RUNNER_PUBLIC_URL if row["launchable"] else None
+            if row["kind"] == "script":
+                row["open_url"] = f"{RUNNER_CONTROL_URL}/console"
+            elif row["launchable"]:
+                row["open_url"] = RUNNER_PUBLIC_URL
+            else:
+                row["open_url"] = None
             row["always_on"] = False
     return rows
 
@@ -92,7 +98,12 @@ async def open_project(request: OpenRequest) -> dict:
         async with httpx.AsyncClient(timeout=180.0) as client:
             response = await client.post(
                 f"{RUNNER_URL}/launch",
-                json={"id": match["id"], "launch": match["launch"], "kind": match["kind"]},
+                json={
+                    "id": match["id"],
+                    "launch": match["launch"],
+                    "kind": match["kind"],
+                    "entry": match.get("entry"),
+                },
             )
             payload = response.json()
     except httpx.HTTPError as exc:
@@ -103,7 +114,7 @@ async def open_project(request: OpenRequest) -> dict:
     return {
         "ok": True,
         "mode": "iframe",
-        "url": f"{RUNNER_PUBLIC_URL}{payload.get('path_suffix', '')}",
+            "url": payload.get("url") or f"{RUNNER_PUBLIC_URL}{payload.get('path_suffix', '')}",
         "project": match,
         "message": payload.get("message", "Project is starting."),
         "runner": payload,

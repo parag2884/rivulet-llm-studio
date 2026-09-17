@@ -30,7 +30,7 @@ SYSTEM_INSTRUCTION = """
 You are the live voice intake agent for an insurance first notice of loss (FNOL) team.
 Speak naturally, warmly, and briefly. The claimant may be stressed. Acknowledge what
 they say, then keep the intake moving one or two questions at a time. Your notes are
-written into a field notebook the claimant can see, so narrate what you are doing in
+written into a claim file the claimant can see, so narrate what you are doing in
 short asides like "I'm noting that" or "let me check that policy".
 
 You work with a claim team that runs in the background while you talk:
@@ -52,8 +52,8 @@ You work with a claim team that runs in the background while you talk:
   Whenever you can see anything relevant to the claim on camera (damage, water
   lines, dents, broken items, the scene or layout, a floor plan, receipts, documents,
   serial numbers), say what you see in one or two concrete sentences and call
-  pin_evidence_photo in that same turn. The current camera frame gets taped into the
-  notebook. Do this the first time you see each new thing; do not wait to be asked
+  pin_evidence_photo in that same turn. The current camera frame gets pinned into the
+  claim file. Do this the first time you see each new thing; do not wait to be asked
   and do not postpone it to a later turn. Skip frames that show nothing relevant,
   like a blank wall or a face.
   Your eyes are the adjuster's eyes, so report only what you can actually see. If
@@ -66,7 +66,7 @@ You work with a claim team that runs in the background while you talk:
   than agreeing, because the adjuster will look at the same photo.
 - draw_incident_sketch: once you understand the scene, call this with a short
   description of the layout and what happened, written for an illustrator. The team
-  draws a rough pen sketch into the notebook. When it returns, ask the claimant
+  draws a rough sketch into the claim file. When it returns, ask the claimant
   whether the sketch looks right. If they correct it, call it again with the fix.
   Call it in the same turn you first learn where it happened and what happened,
   alongside sync_claim_packet; do not wait for every detail or for the claimant to
@@ -136,7 +136,7 @@ def tool_declarations() -> list[types.Tool]:
     pin_photo = types.FunctionDeclaration(
         name="pin_evidence_photo",
         description=(
-            "Tape the current camera frame into the claim notebook as evidence, with your own "
+            "Pin the current camera frame into the claim file as evidence, with your own "
             "observation as the caption and whether it confirms what the claimant described. "
             "Call it only after you have looked at the camera and can describe what is in the frame."
         ),
@@ -170,8 +170,8 @@ def tool_declarations() -> list[types.Tool]:
     sketch = types.FunctionDeclaration(
         name="draw_incident_sketch",
         description=(
-            "Ask the claim team to draw a rough hand-drawn pen sketch of the incident scene "
-            "into the notebook. Runs in the background for several seconds. Call it once you "
+            "Ask the claim team to draw a rough sketch of the incident scene "
+            "into the claim file. Runs in the background for several seconds. Call it once you "
             "know the location, the layout, and what happened. Call it again with corrections."
         ),
         behavior=types.Behavior.NON_BLOCKING,
@@ -219,10 +219,9 @@ def sketch_prompt(scene_description: str) -> str:
     """Prompt for the image model so every sketch looks like the same adjuster's pen."""
 
     return (
-        "A quick hand-drawn pen sketch on cream notebook paper, the kind an insurance "
-        "adjuster draws in a field notebook. Black ink line drawing, loose confident "
-        "strokes, small handwritten labels in the same ink, a light blue wash only where "
-        "water is present and a light red wash only where impact damage is. Top-down or "
+        "A clean architectural line sketch on white paper for an insurance claim file. "
+        "Black ink line drawing, confident strokes, small printed labels in the same ink, a light teal wash only where "
+        "water is present and a light coral wash only where impact damage is. Top-down or "
         "simple perspective, no photorealism, no shading gradients, no people. Write no names, "
         "dates, addresses, or claim numbers anywhere; the only text is short labels for the "
         "objects in the scene. Scene to draw: "
@@ -286,7 +285,7 @@ def tool_headline(name: str, args: dict[str, Any], result: dict[str, Any] | None
     if name == "draw_incident_sketch":
         if result is None:
             return "Sketching the scene"
-        return "Sketch pinned to the notebook" if result.get("sketched") else str(result.get("message", "Sketch failed"))
+        return "Sketch pinned to the claim file" if result.get("sketched") else str(result.get("message", "Sketch failed"))
     return name
 
 
