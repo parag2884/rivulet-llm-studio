@@ -1,0 +1,55 @@
+x-build-args: &build-args
+  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
+  PIP_TRUSTED_HOST: packagefeedproxy.microsoft.io
+
+services:
+  studio:
+    build:
+      context: ./studio
+      dockerfile: Dockerfile
+      args: *build-args
+    ports:
+      - "8080:8080"
+    environment:
+      APPS_ROOT: /apps
+      INSURANCE_PUBLIC_URL: http://localhost:4177
+      RUNNER_INTERNAL_URL: http://runner:8500
+      RUNNER_PUBLIC_URL: http://localhost:8501
+    volumes:
+      - .:/apps:ro
+    depends_on:
+      - insurance-claim
+      - runner
+
+  insurance-claim:
+    build:
+      context: ./voice_ai_agents/insurance_claim_live_agent_team
+      args: *build-args
+    ports:
+      - "4177:4177"
+    env_file:
+      - ./voice_ai_agents/insurance_claim_live_agent_team/.env
+    environment:
+      FNOL_CORS_ORIGINS: "http://localhost:8080,http://127.0.0.1:8080,http://localhost:4177,http://127.0.0.1:4177"
+      LOG_LEVEL: INFO
+
+  runner:
+    build:
+      context: ./studio/runner
+      args: *build-args
+    ports:
+      - "8500:8500"
+      - "8501:8501"
+    env_file:
+      - ./voice_ai_agents/insurance_claim_live_agent_team/.env
+    environment:
+      APPS_ROOT: /apps
+      CHILD_PORT: 8501
+      PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
+      PIP_TRUSTED_HOST: packagefeedproxy.microsoft.io
+    volumes:
+      - .:/apps:ro
+      - runner-venvs:/tmp/venvs
+
+volumes:
+  runner-venvs:

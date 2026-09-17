@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LLM Apps Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="top">
+        <div>
+          <p class="kicker">rivulet-llm-studio</p>
+          <h1>Studio</h1>
+        </div>
+        <div class="stats" id="stats"></div>
+      </header>
+
+      <section class="toolbar">
+        <input id="search" type="search" placeholder="Search projects, stacks, folders…" />
+        <select id="category"></select>
+        <select id="quality">
+          <option value="all">All quality</option>
+          <option value="flagship">Flagship</option>
+          <option value="solid">Solid</option>
+          <option value="tutorial">Tutorial</option>
+          <option value="skill">Skill</option>
+        </select>
+        <label class="check">
+          <input id="launchableOnly" type="checkbox" />
+          Runnable here
+        </label>
+      </section>
+
+      <div class="workspace">
+        <aside class="list" id="list"></aside>
+        <main class="detail">
+          <section class="brief" id="brief">
+            <p class="empty">Select a project. Flagship apps open in the pane below. Streamlit/FastAPI apps boot in the runner, one at a time.</p>
+          </section>
+          <section class="stage">
+            <div class="stage-bar">
+              <span id="stageLabel">No app open</span>
+              <a id="popOut" hidden target="_blank" rel="noreferrer">Open in new tab</a>
+            </div>
+            <div class="stage-body">
+              <iframe id="frame" title="Running project" hidden></iframe>
+              <div id="stageEmpty" class="stage-empty">The selected app will appear here.</div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+    <script src="/assets/app.js"></script>
+  </body>
+</html>
