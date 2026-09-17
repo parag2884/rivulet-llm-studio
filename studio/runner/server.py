@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 APPS_ROOT = Path(os.getenv("APPS_ROOT", "/apps")).resolve()
@@ -23,8 +24,9 @@ state: dict[str, Any] = {"process": None, "project": None, "started_at": None, "
 
 class LaunchRequest(BaseModel):
     id: str
-    launch: list[str]
+    launch: list[str] = []
     kind: str = "streamlit"
+    entry: str | None = None
 
 
 def _safe_project(project_id: str) -> Path:
@@ -87,11 +89,16 @@ def _install(python: Path, project: Path) -> None:
 def status() -> dict:
     proc = state.get("process")
     alive = bool(proc and proc.poll() is None)
+    log_path = Path("/tmp/runner-child.log")
+    log_tail = ""
+    if log_path.exists():
+        log_tail = log_path.read_text(encoding="utf-8", errors="ignore")[-8000:]
     return {
         "running": alive,
         "project": state.get("project"),
+        "kind": state.get("kind"),
         "started_at": state.get("started_at"),
-        "log_tail": (state.get("log") or "")[-2000:],
+        "log_tail": log_tail,
     }
 
 
@@ -103,8 +110,6 @@ def stop() -> dict:
 
 @app.post("/launch")
 def launch(request: LaunchRequest) -> dict:
-    if not request.launch:
-        raise HTTPException(status_code=400, detail="No launch command for this project.")
     project = _safe_project(request.id)
     _stop()
     python = _venv_python(request.id)
@@ -115,28 +120,49 @@ def launch(request: LaunchRequest) -> dict:
     except subprocess.TimeoutExpired as exc:
         raise HTTPException(status_code=500, detail="pip install timed out.") from exc
 
-    cmd = [str(python), *request.launch]
     extra_env = os.environ.copy()
     extra_env["PYTHONUNBUFFERED"] = "1"
     extra_env["STREAMLIT_SERVER_HEADLESS"] = "true"
     extra_env["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
-    if request.kind == "streamlit":
-        cmd.extend(
-            [
-                "--server.port",
-                str(CHILD_PORT),
-                "--server.address",
-                "0.0.0.0",
-                "--server.headless",
-                "true",
-                "--server.enableCORS",
-                "false",
-                "--server.enableXsrfProtection",
-                "false",
-            ]
-        )
-    elif request.kind == "fastapi":
-        cmd.extend(["--host", "0.0.0.0", "--port", str(CHILD_PORT)])
+    extra_env["GRADIO_SERVER_NAME"] = "0.0.0.0"
+    extra_env["GRADIO_SERVER_PORT"] = str(CHILD_PORT)
+
+    if request.kind == "adk":
+        adk = python.parent / "adk"
+        if not adk.exists():
+            raise HTTPException(status_code=500, detail="google-adk did not install the adk CLI.")
+        cmd = [str(adk), "web", "--host", "0.0.0.0", "--port", str(CHILD_PORT)]
+    elif request.kind == "script":
+        entry = request.entry or (request.launch[0] if request.launch else None)
+        if not entry:
+            raise HTTPException(status_code=400, detail="No script entry file.")
+        cmd = [str(python), entry]
+    elif request.kind == "gradio":
+        entry = request.entry or (request.launch[0] if request.launch else None)
+        if not entry:
+            raise HTTPException(status_code=400, detail="No Gradio entry file.")
+        cmd = [str(python), entry]
+    else:
+        if not request.launch:
+            raise HTTPException(status_code=400, detail="No launch command for this project.")
+        cmd = [str(python), *request.launch]
+        if request.kind == "streamlit":
+            cmd.extend(
+                [
+                    "--server.port",
+                    str(CHILD_PORT),
+                    "--server.address",
+                    "0.0.0.0",
+                    "--server.headless",
+                    "true",
+                    "--server.enableCORS",
+                    "false",
+                    "--server.enableXsrfProtection",
+                    "false",
+                ]
+            )
+        elif request.kind == "fastapi":
+            cmd.extend(["--host", "0.0.0.0", "--port", str(CHILD_PORT)])
 
     log_path = Path("/tmp/runner-child.log")
     log_file = log_path.open("w", encoding="utf-8")
@@ -150,20 +176,64 @@ def launch(request: LaunchRequest) -> dict:
     )
     state["process"] = proc
     state["project"] = request.id
+    state["kind"] = request.kind
     state["started_at"] = time.time()
     time.sleep(1.2)
-    if proc.poll() is not None:
+    log_file.flush()
+    if request.kind != "script" and proc.poll() is not None:
         log_file.close()
         state["log"] = log_path.read_text(encoding="utf-8", errors="ignore")
         raise HTTPException(
             status_code=500,
             detail=state["log"][-1500:] or "Project process exited immediately.",
         )
-    suffix = "/?embed=true" if request.kind == "streamlit" else "/"
+    if request.kind == "script":
+        suffix = ""
+        url = os.getenv("RUNNER_CONTROL_PUBLIC_URL", "http://localhost:8500") + "/console"
+        message = f"Running {request.id} as a script. Logs are in the console."
+    elif request.kind == "fastapi":
+        suffix = "/docs"
+        url = None
+        message = f"Started {request.id} API docs on port {CHILD_PORT}."
+    else:
+        suffix = "/?embed=true" if request.kind == "streamlit" else "/"
+        url = None
+        message = f"Started {request.id} on port {CHILD_PORT}. First launch installs requirements."
     return {
         "ok": True,
         "project": request.id,
         "pid": proc.pid,
         "path_suffix": suffix,
-        "message": f"Started {request.id} on port {CHILD_PORT}. First launch installs requirements.",
+        "url": url,
+        "message": message,
     }
+
+
+CONSOLE_HTML = """<!doctype html>
+<html><head><meta charset="utf-8"/><title>Script console</title>
+<style>
+body{margin:0;background:#0e0c0a;color:#f3eee6;font:13px/1.45 ui-monospace,monospace}
+header{padding:10px 14px;border-bottom:1px solid #3a3228;color:#a89a88}
+pre{padding:14px;white-space:pre-wrap;margin:0}
+</style></head>
+<body>
+<header id="meta">Script console</header>
+<pre id="log">Waiting for output…</pre>
+<script>
+async function tick(){
+  const res = await fetch('/status');
+  const data = await res.json();
+  document.getElementById('meta').textContent =
+    (data.project || 'no project') + (data.running ? ' · running' : ' · stopped');
+  document.getElementById('log').textContent = data.log_tail || 'No output yet.';
+}
+tick();
+setInterval(tick, 1500);
+</script>
+</body></html>
+"""
+
+
+@app.get("/console", response_class=HTMLResponse)
+def console() -> str:
+    return CONSOLE_HTML

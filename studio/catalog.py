@@ -25,14 +25,20 @@ SKIP_DIRS = {
     "frontend",
     "client",
     "mcp-server",
+    "tests",
+    "test",
+    "evals",
+    "examples",
 }
+
+LAUNCHABLE_KINDS = {"streamlit", "fastapi", "gradio", "adk", "script"}
 
 FEATURED = {
     "voice_ai_agents/insurance_claim_live_agent_team": {
         "featured": True,
         "service": "insurance-claim",
         "quality": "flagship",
-        "summary": "Live FNOL notebook: voice, camera stills, policy lookup, routing stamp, adjuster packet.",
+        "summary": "Live FNOL claim file: voice, camera stills, policy lookup, routing stamp, adjuster packet.",
         "quality_notes": [
             "Hybrid LLM + deterministic Python rules; routing is not model-decided.",
             "Azure path is turn-based. Gemini Live speech-to-speech needs a Google key.",
@@ -113,67 +119,135 @@ def _heading(readme: Path) -> str | None:
     return None
 
 
-def _read_small(path: Path, limit: int = 4000) -> str:
+def _read_small(path: Path, limit: int = 6000) -> str:
     try:
         return path.read_text(encoding="utf-8", errors="ignore")[:limit].lower()
     except OSError:
         return ""
 
 
-def _detect_entry(path: Path, req: str) -> tuple[str, str | None, list[str]]:
-    """Return kind, relative entry file, launch argv."""
+def _iter_py(path: Path, depth: int = 3) -> list[Path]:
+    found: list[Path] = []
+
+    def walk(current: Path, remaining: int) -> None:
+        try:
+            children = list(current.iterdir())
+        except OSError:
+            return
+        for child in children:
+            if child.is_file() and child.suffix == ".py" and child.name != "__init__.py":
+                found.append(child)
+            elif (
+                child.is_dir()
+                and remaining > 0
+                and child.name not in SKIP_DIRS
+                and not child.name.startswith(".")
+            ):
+                walk(child, remaining - 1)
+
+    walk(path, depth)
+    return found
+
+
+def _prefer_entry(files: list[Path]) -> Path | None:
+    if not files:
+        return None
+    ranked = []
+    for py in files:
+        name = py.name.lower()
+        score = 3
+        if name in {"app.py", "home.py", "main.py", "server.py", "streamlit_app.py"}:
+            score = 0
+        elif "agent" in name:
+            score = 1
+        elif name.endswith("_app.py"):
+            score = 2
+        ranked.append((score, len(py.parts), py))
+    ranked.sort(key=lambda item: (item[0], item[1], item[2].name.lower()))
+    return ranked[0][2]
+
+
+def _readme_streamlit_entry(path: Path) -> Path | None:
+    readme = path / "README.md"
+    if not readme.exists():
+        readme = path / "README.MD"
+    if not readme.exists():
+        return None
+    text = _read_small(readme, limit=12000)
+    marker = "streamlit run "
+    idx = text.find(marker)
+    if idx == -1:
+        return None
+    rest = text[idx + len(marker) :].split()[0].strip("`\"'")
+    candidate = path / rest
+    if candidate.exists():
+        return candidate
+    return None
+
+
+def _detect_entry(path: Path, req: str) -> tuple[str, str | None, list[str], str]:
+    """Return kind, relative entry file, launch argv, blocked reason."""
 
     files = {p.name.lower() for p in path.iterdir() if p.is_file()}
     if "skill.md" in files:
-        return "skill", "SKILL.md", []
+        return "skill", "SKILL.md", [], "Agent skill — install with npx skills add, not a web app."
 
     if "package.json" in files and "requirements.txt" not in files:
-        return "node", "package.json", []
+        return "node", "package.json", [], "JavaScript app — Studio runner boots Python apps only."
 
+    py_candidates = _iter_py(path)
     streamlit_files: list[Path] = []
     fastapi_files: list[Path] = []
-    py_candidates: list[Path] = list(path.glob("*.py"))
-    for extra in ("live_demo", "frontend", "backend", "app"):
-        folder = path / extra
-        if folder.is_dir():
-            py_candidates.extend(folder.glob("*.py"))
+    gradio_files: list[Path] = []
     for py in py_candidates:
         text = _read_small(py)
-        if "streamlit" in text:
+        if "import streamlit" in text or "from streamlit" in text:
             streamlit_files.append(py)
-        if "from fastapi" in text or "import fastapi" in text:
+        if "from fastapi" in text or "import fastapi" in text or "fastapi()" in text:
             fastapi_files.append(py)
+        if "import gradio" in text or "from gradio" in text:
+            gradio_files.append(py)
 
-    if "streamlit" in req or streamlit_files:
-        preferred = None
-        for py in streamlit_files:
-            name = py.name.lower()
-            if "agent" in name or name in {"app.py", "home.py"}:
-                preferred = py
-                break
-        entry = preferred or (streamlit_files[0] if streamlit_files else None)
+    readme_entry = _readme_streamlit_entry(path)
+    if readme_entry is not None and readme_entry not in streamlit_files:
+        streamlit_files.insert(0, readme_entry)
+
+    if streamlit_files or ("streamlit" in req and streamlit_files):
+        entry = _prefer_entry(streamlit_files) or readme_entry
         if entry is not None:
             rel = entry.relative_to(path).as_posix()
-            return "streamlit", rel, ["-m", "streamlit", "run", rel]
-        return "streamlit", None, []
+            return "streamlit", rel, ["-m", "streamlit", "run", rel], ""
+
+    if gradio_files:
+        entry = _prefer_entry(gradio_files)
+        rel = entry.relative_to(path).as_posix()
+        return "gradio", rel, [rel], ""
 
     if "fastapi" in req or fastapi_files:
         live = path / "live_demo" / "server.py"
         if live.exists():
-            return "fastapi", "live_demo/server.py", ["-m", "uvicorn", "live_demo.server:app"]
-        for py in fastapi_files:
-            rel = py.relative_to(path).as_posix()
+            return "fastapi", "live_demo/server.py", ["-m", "uvicorn", "live_demo.server:app"], ""
+        entry = _prefer_entry(fastapi_files)
+        if entry is not None:
+            rel = entry.relative_to(path).as_posix()
             module = rel[:-3].replace("/", ".")
-            if py.name == "server.py":
-                return "fastapi", rel, ["-m", "uvicorn", f"{module}:app"]
-        if fastapi_files:
-            rel = fastapi_files[0].relative_to(path).as_posix()
-            module = rel[:-3].replace("/", ".")
-            return "fastapi", rel, ["-m", "uvicorn", f"{module}:app"]
+            return "fastapi", rel, ["-m", "uvicorn", f"{module}:app"], ""
+
+    if "google-adk" in req or "google_adk" in req:
+        agent = path / "agent.py"
+        if agent.exists():
+            return "adk", "agent.py", [], ""
+
+    skip_script = any(token in str(path).lower() for token in ("finetun", "unsloth", "notebook"))
+    if not skip_script:
+        script = _prefer_entry(py_candidates)
+        if script is not None and ("requirements.txt" in files or script.name.lower() in {"agent.py", "app.py", "main.py"}):
+            rel = script.relative_to(path).as_posix()
+            return "script", rel, [rel], ""
 
     if "requirements.txt" in files or any(f.endswith(".py") for f in files):
-        return "python", None, []
-    return "docs", None, []
+        return "python", None, [], "CLI/notebook project with no Streamlit, Gradio, FastAPI, or ADK web entry."
+    return "docs", None, [], "No runnable Python web entry."
 
 
 def _quality(path: Path, rel: str, kind: str, overlay: dict[str, Any]) -> str:
@@ -185,7 +259,7 @@ def _quality(path: Path, rel: str, kind: str, overlay: dict[str, Any]) -> str:
         return "solid"
     if kind in {"skill"}:
         return "skill"
-    if kind in {"streamlit", "python"}:
+    if kind in {"streamlit", "python", "script", "adk", "gradio"}:
         py_files = [p for p in path.glob("*.py")]
         if len(py_files) <= 2:
             return "tutorial"
@@ -207,6 +281,7 @@ def _stack(req: str, kind: str) -> str:
         ("langchain", "langchain"),
         ("fastapi", "fastapi"),
         ("pydantic-ai", "pydantic-ai"),
+        ("gradio", "gradio"),
     ]
     for needle, label in mapping:
         if needle in req and label not in libs:
@@ -215,6 +290,8 @@ def _stack(req: str, kind: str) -> str:
         libs.append("agent-skill")
     if kind == "node":
         libs.append("javascript")
+    if kind == "adk" and "adk" not in libs:
+        libs.append("adk")
     return ", ".join(libs) or kind
 
 
@@ -237,10 +314,11 @@ def scan_projects(root: Path) -> list[dict[str, Any]]:
             continue
         readme = next((path / name for name in filenames if name.lower() == "readme.md"), path / "README.md")
         req = _read_small(path / "requirements.txt") if "requirements.txt" in files else ""
-        kind, entry, launch = _detect_entry(path, req)
+        kind, entry, launch, blocked = _detect_entry(path, req)
         overlay = FEATURED.get(rel, {})
         has_tests = (path / "tests").exists() or any("test_" in name for name in filenames)
         has_docker = any(path.glob("Dockerfile*")) or any(name.lower().startswith("dockerfile") for name in filenames)
+        launchable = bool(overlay.get("service")) or (bool(launch) and kind in LAUNCHABLE_KINDS) or kind == "adk"
         project = {
             "id": rel,
             "name": path.name.replace("_", " ").replace("-", " "),
@@ -250,7 +328,8 @@ def scan_projects(root: Path) -> list[dict[str, Any]]:
             "stack": _stack(req, kind),
             "entry": entry,
             "launch": launch,
-            "launchable": bool(launch) and kind in {"streamlit", "fastapi"},
+            "launchable": launchable,
+            "blocked_reason": "" if launchable else blocked,
             "has_tests": has_tests,
             "has_docker": has_docker,
             "has_requirements": "requirements.txt" in files,

@@ -3,14 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Insurance Claim Live Agent Team</title>
+    <title>Rivulet Claims</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600&family=Patrick+Hand&family=Inter:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=notebook-1" />
+    <link rel="stylesheet" href="./styles.css?v=rivulet-3" />
   </head>
   <body>
     <div class="desk">
@@ -18,8 +18,8 @@
         <div class="brand">
           <span class="brand-mark" aria-hidden="true"></span>
           <div>
-            <h1>Insurance Claim Live Agent Team</h1>
-            <p id="modelLabel" class="brand-sub">Connecting to Gemini</p>
+            <h1>Rivulet Claims</h1>
+            <p id="modelLabel" class="brand-sub">Connecting</p>
           </div>
         </div>
         <button id="openPacket" class="ghost-button" type="button">Adjuster packet</button>
@@ -29,7 +29,7 @@
         <aside class="side">
           <section class="card call-card">
             <div class="card-head">
-              <span class="card-kicker">Live call</span>
+              <span class="card-kicker">Live intake</span>
               <span id="callStatus" class="pill">Connecting</span>
             </div>
 
@@ -50,7 +50,7 @@
 
             <div id="cameraStage" class="camera-stage" hidden>
               <video id="cameraPreview" autoplay muted playsinline></video>
-              <span class="camera-tag"><span class="rec-dot" aria-hidden="true"></span> Agent is watching</span>
+              <span class="camera-tag"><span class="rec-dot" aria-hidden="true"></span> Camera live</span>
             </div>
 
             <div id="transcript" class="transcript" aria-live="polite"></div>
@@ -60,7 +60,7 @@
                 id="textInput"
                 type="text"
                 autocomplete="off"
-                placeholder="Or type what the claimant says..."
+                placeholder="Type what the claimant says…"
                 aria-label="Type a claimant response"
               />
               <button type="submit">Send</button>
@@ -78,23 +78,23 @@
           <section class="card team-card">
             <div class="card-head">
               <span class="card-kicker">Claim team</span>
-              <span class="card-hint">Working in the background while the call continues</span>
             </div>
+            <p class="card-hint">Runs in the background while the call continues.</p>
             <ul id="teamFeed" class="team-feed"></ul>
           </section>
         </aside>
 
-        <section class="notebook-wrap" aria-label="Field notebook">
+        <section class="notebook-wrap" aria-label="Claim file">
           <div class="notebook">
             <div class="holes" aria-hidden="true"><span></span><span></span><span></span></div>
             <div class="page-head">
-              <span id="pageDate">Claim intake notes</span>
-              <span id="pageAgent">Gemini 3.8 Live, field notes</span>
+              <span id="pageDate">Claim file</span>
+              <span id="pageAgent">Rivulet intake</span>
             </div>
             <div id="notes" class="notes"></div>
             <div id="pinboard" class="pinboard"></div>
             <div id="stamp" class="stamp" hidden></div>
-            <div id="pen" class="pen" hidden><span class="pen-nib" aria-hidden="true"></span> writing</div>
+            <div id="pen" class="pen" hidden><span class="pen-nib" aria-hidden="true"></span> updating file</div>
           </div>
         </section>
       </main>
@@ -109,6 +109,6 @@
     </dialog>
 
     <canvas id="frameCanvas" hidden></canvas>
-    <script src="./app.js?v=azure-1"></script>
+    <script src="./app.js?v=rivulet-3"></script>
   </body>
 </html>

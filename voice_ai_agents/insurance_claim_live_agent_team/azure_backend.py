@@ -116,7 +116,7 @@ def openai_tool_declarations() -> list[dict[str, Any]]:
         ),
         fn(
             "pin_evidence_photo",
-            "Tape the current camera frame into the notebook with your observation and whether it confirms the claimant.",
+            "Pin the current camera frame into the claim file with your observation and whether it confirms the claimant.",
             {
                 "observation": {
                     "type": "string",
@@ -139,7 +139,7 @@ def openai_tool_declarations() -> list[dict[str, Any]]:
         ),
         fn(
             "draw_incident_sketch",
-            "Draw a rough pen sketch of the incident scene into the notebook. Call again with corrections.",
+            "Draw a rough sketch of the incident scene into the claim file. Call again with corrections.",
             {
                 "scene_description": {
                     "type": "string",
@@ -198,14 +198,14 @@ async def classify_claim(claim: dict[str, Any], validation: dict[str, Any]) -> C
 
 
 async def draw_svg_sketch(scene_description: str) -> bytes:
-    """Ask the chat model for a notebook-style SVG, since this Azure setup has no image model."""
+    """Ask the chat model for a clean line-drawing SVG, since this Azure setup has no image model."""
 
     prompt = (
         "Return ONLY a complete SVG document. No markdown, no explanation. "
-        "Canvas 1024x640, cream background #f6f0de, black ink #1b1b1b, "
-        "loose hand-drawn lines (stroke-width 2, slightly imperfect). "
-        "Small handwritten-looking labels. Light blue #9ec9e8 wash only where water is, "
-        "light red #e8a39a wash only on impact damage. No people, no names, no dates, "
+        "Canvas 1024x640, white background #f4f7f8, ink #14202b, "
+        "clean architectural lines (stroke-width 2). "
+        "Small printed labels. Light teal #9ed9d0 wash only where water is, "
+        "light coral #e8a39a wash only on impact damage. No people, no names, no dates, "
         "no addresses, no claim numbers. Scene: "
         f"{scene_description.strip()}"
     )

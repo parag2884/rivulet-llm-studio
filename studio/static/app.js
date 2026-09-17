@@ -7,11 +7,10 @@ const searchEl = document.querySelector("#search");
 const launchableEl = document.querySelector("#launchableOnly");
 const frameEl = document.querySelector("#frame");
 const stageEmpty = document.querySelector("#stageEmpty");
-const stageLabel = document.querySelector("#stageLabel");
-const popOut = document.querySelector("#popOut");
 
 let catalog = { projects: [], categories: [], counts: {} };
 let selectedId = null;
+let openId = null;
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -35,11 +34,11 @@ function filtered() {
 function renderStats() {
   const counts = catalog.counts || {};
   statsEl.innerHTML = [
-    ["Projects", counts.all || 0],
-    ["Runnable", counts.launchable || 0],
-    ["Flagship", counts.flagship || 0],
+    ["all", counts.all || 0],
+    ["run", counts.launchable || 0],
+    ["flagship", counts.flagship || 0],
   ]
-    .map(([label, value]) => `<div><b>${value}</b>${label}</div>`)
+    .map(([label, value]) => `<span><b>${value}</b>${label}</span>`)
     .join("");
 }
 
@@ -51,47 +50,48 @@ function renderList() {
       return `<button class="card ${active}" data-id="${escapeHtml(project.id)}">
         <div class="title">${escapeHtml(project.title)}</div>
         <div class="meta">
+          <span class="dot ${project.launchable ? "on" : ""}"></span>
           <span class="pill ${escapeHtml(project.quality)}">${escapeHtml(project.quality)}</span>
-          ${escapeHtml(project.category)} · ${escapeHtml(project.kind)}
+          ${escapeHtml(project.kind)}
         </div>
       </button>`;
     })
     .join("");
 }
 
+function actionLabel(project) {
+  if (project.always_on) return "Open";
+  if (project.launchable) return "Launch";
+  return "Can't run";
+}
+
 function renderBrief(project) {
   if (!project) return;
-  const notes = (project.quality_notes || [])
-    .map((note) => `<li>${escapeHtml(note)}</li>`)
-    .join("");
+  const hint = project.launchable
+    ? project.summary || `${project.stack || project.kind} · ${project.id}`
+    : project.blocked_reason || "This is a skill, Node app, or notebook — open the folder README.";
   briefEl.innerHTML = `
-    <p class="kicker">${escapeHtml(project.id)}</p>
-    <h2>${escapeHtml(project.title)}</h2>
-    <p>${escapeHtml(project.summary || "No extra blurb. This is a template from the collection.")}</p>
-    <p>Stack: ${escapeHtml(project.stack)} · Tests: ${project.has_tests ? "yes" : "no"} · Dockerfile: ${project.has_docker ? "yes" : "no"}</p>
-    ${notes ? `<ul>${notes}</ul>` : ""}
+    <div class="title" title="${escapeHtml(project.id)}">${escapeHtml(project.title)}</div>
+    <div class="hint" title="${escapeHtml(hint)}">${escapeHtml(hint)}</div>
     <div class="actions">
-      <button class="primary" id="openBtn">${project.always_on ? "Open app" : project.launchable ? "Launch in studio" : "Not runnable here"}</button>
-      ${project.open_url ? `<a class="button" href="${escapeHtml(project.open_url)}" target="_blank" rel="noreferrer">New tab</a>` : ""}
+      <span id="openStatus"></span>
+      <button class="primary" id="openBtn">${actionLabel(project)}</button>
+      ${project.open_url ? `<a class="button" href="${escapeHtml(project.open_url)}" target="_blank" rel="noreferrer">Tab</a>` : ""}
     </div>
-    <p id="openStatus"></p>
   `;
   document.querySelector("#openBtn").disabled = !project.launchable;
   document.querySelector("#openBtn").addEventListener("click", () => openProject(project));
 }
 
-function showFrame(url, label) {
+function showFrame(url) {
   frameEl.hidden = false;
   stageEmpty.hidden = true;
-  frameEl.src = url;
-  stageLabel.textContent = label;
-  popOut.hidden = false;
-  popOut.href = url.replace("/?embed=true", "/");
+  if (frameEl.src !== url) frameEl.src = url;
 }
 
 async function openProject(project) {
   const status = document.querySelector("#openStatus");
-  status.textContent = "Starting…";
+  if (status) status.textContent = "Starting…";
   try {
     const response = await fetch("/api/projects/open", {
       method: "POST",
@@ -101,36 +101,43 @@ async function openProject(project) {
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.detail || "Open failed");
     if (payload.mode === "iframe" && payload.url) {
-      showFrame(payload.url, project.title);
-      status.textContent = payload.message || "Open.";
-    } else {
-      status.textContent = payload.message || "This project cannot boot in the runner.";
+      showFrame(payload.url);
+      openId = project.id;
+      if (status) status.textContent = payload.message || "Open";
+    } else if (status) {
+      status.textContent = payload.message || "Not runnable in Studio.";
     }
   } catch (error) {
-    status.textContent = error.message;
+    if (status) status.textContent = error.message;
   }
 }
 
+function selectProject(id, { launchAlwaysOn = false } = {}) {
+  selectedId = id;
+  const project = catalog.projects.find((item) => item.id === selectedId);
+  renderList();
+  renderBrief(project);
+  if (launchAlwaysOn && project?.always_on) openProject(project);
+}
+
 async function load() {
+  briefEl.innerHTML = `<p class="empty">Loading projects…</p>`;
   const payload = await fetch("/api/projects").then((response) => response.json());
   catalog = payload;
   categoryEl.innerHTML = `<option value="all">All categories</option>` + payload.categories.map((name) => `<option>${name}</option>`).join("");
   renderStats();
   renderList();
-  const first = filtered().find((project) => project.featured) || filtered()[0];
-  if (first) {
-    selectedId = first.id;
-    renderList();
-    renderBrief(first);
-  }
+  const first =
+    filtered().find((project) => project.always_on) ||
+    filtered().find((project) => project.featured) ||
+    filtered()[0];
+  if (first) selectProject(first.id, { launchAlwaysOn: true });
 }
 
 listEl.addEventListener("click", (event) => {
   const button = event.target.closest("[data-id]");
   if (!button) return;
-  selectedId = button.dataset.id;
-  renderList();
-  renderBrief(catalog.projects.find((project) => project.id === selectedId));
+  selectProject(button.dataset.id, { launchAlwaysOn: true });
 });
 
 for (const el of [searchEl, categoryEl, qualityEl, launchableEl]) {
